@@ -70,26 +70,25 @@ var loansByMonth={};
 var paymentsByYear={};
 var paymentsByMonth={};
 var chartmillToken='jwkeri';
+var lastRequest = new Date().getTime();
 
 //check uri for redirect token
 var uri=window.location.search;
 if((!localStorage['accessToken'] || localStorage['accessToken'].length==0) 
 	&& uri.indexOf('code=')>0 && uri.indexOf('&state')>0){
 	code = uri.substring(uri.indexOf('code=')+5,uri.indexOf('&state'));
-	$.ajax({
-	  url: "https://api.bondora.com/oauth/access_token",
-	  method:"POST",
-	  data: {grant_type:'authorization_code',client_id:'93211f76d6174ee2bce4d329ac35b81f',client_secret:'94BBXvLrItGEwAPjS9RNwaZKNVy1FjCrKK0AJZkwltajI90u',code: code}
-	}).done(function (data){
-		localStorage['accessToken'] = JSON.stringify(data);
-		accessToken = data.access_token;
-		$('#hasToken').show();
-		$('#accessKey').val(accessToken);
-		$('#noToken').hide();
-
-	}).error(function(err){
-		
-	});
+	callBondora({
+		  url: "https://api.bondora.com/oauth/access_token",
+		  method:"POST",
+		  data: {grant_type:'authorization_code',client_id:'93211f76d6174ee2bce4d329ac35b81f',client_secret:'94BBXvLrItGEwAPjS9RNwaZKNVy1FjCrKK0AJZkwltajI90u',code: code}
+		},function(data){
+			localStorage['accessToken'] = JSON.stringify(data);
+			accessToken = data.access_token;
+			$('#hasToken').show();
+			$('#accessKey').val(accessToken);
+			$('#noToken').hide();
+		},function(){
+		});
 }
 
 if(localStorage['accessToken'] && localStorage['accessToken'].length>0){
@@ -349,107 +348,99 @@ function calc(){
 
 function getReports(){
 	log("fetching exsiting report list");
-	$.ajax({
-	  url: "https://api.bondora.com/api/v1/reports",
-	  method:"GET",
-	  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
-	}).done(function (data){
-		var reports = data.Payload;
-	    for(var r in reports){
-	    	var report=reports[r];
-	    	//investments
-	    	if(report.ReportType == 2 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
-	    		investmentReport = report.ReportId;
-	    		getInvestments();
-	    	}
-	    	if(report.ReportType == 4 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
-	    		repaymentReport = report.ReportId;
-	    		getPayments();
-	    	}
-	    	if(investmentReport && repaymentReport) break;
-	    }
-	    if(!investmentReport)
-	    	createInvestmentReport();
-	    if(!repaymentReport)
-	    	createPaymentReport();
-	}).error(function(){
-		window.setTimeout(function(){getReports();},1200);
-	});
+	callBondora({
+		  url: "https://api.bondora.com/api/v1/reports",
+		  method:"GET"
+		},function(data){
+			var reports = data.Payload;
+		    for(var r in reports){
+		    	var report=reports[r];
+		    	//investments
+		    	if(report.ReportType == 2 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
+		    		investmentReport = report.ReportId;
+		    		getInvestments();
+		    	}
+		    	if(report.ReportType == 4 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
+		    		repaymentReport = report.ReportId;
+		    		getPayments();
+		    	}
+		    	if(investmentReport && repaymentReport) break;
+		    }
+		    if(!investmentReport)
+		    	createInvestmentReport();
+		    if(!repaymentReport)
+		    	createPaymentReport();
+		},function(){
+			getReports();
+		});
 }
 
 function createInvestmentReport(){
 	log("generating new bondora investment report");
-//create report
-$.ajax({
-	  url: "https://api.bondora.com/api/v1/report",
-	  method:"POST",
-	  data:{ReportType:2},
-	  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
-	}).done(function(data){
-		investmentReport = data.Payload.ReportId;
-	    getInvestments();
-	}).error(function(){
-		window.setTimeout(function(){createInvestmentReport();},2400);
-	});
+	callBondora({
+		  url: "https://api.bondora.com/api/v1/report",
+		  method:"POST",
+		  data:{ReportType:2}
+		},function(data){
+			investmentReport = data.Payload.ReportId;
+		    getInvestments();
+		},function(){
+			createInvestmentReport();
+		});
 }
 function createPaymentReport(){
 	log("generating new bondora repayment report");
-$.ajax({
-	  url: "https://api.bondora.com/api/v1/report",
-	  method:"POST",
-	  data:{ReportType:4},
-	  success: function(data, status) {
-	    repaymentReport = data.Payload.ReportId;
-	    getPayments();
-	  },
-	  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
-	}).done(function(data){
-		repaymentReport = data.Payload.ReportId;
-	    getPayments();
-	}).error(function(data){
-		window.setTimeout(function(){createPaymentReport();},1500);
-	});
+	callBondora({
+		  url: "https://api.bondora.com/api/v1/report",
+		  method:"POST",
+		  data:{ReportType:4}
+		},function(data){
+			repaymentReport = data.Payload.ReportId;
+		    getPayments();
+		},function(){
+			createPaymentReport();
+		});
 }
 
 function getInvestments(){
 	log("trying to fetch investment report");
-	window.setTimeout(function(){
-		$.ajax({
-		  url: "https://api.bondora.com/api/v1/report/"+investmentReport,
-		  success: function(data, status) {
-		  	if(data && data.Success && data.Payload.Result){
+	callBondora({
+		  url: "https://api.bondora.com/api/v1/report/"+investmentReport
+		},function(data, status){
+			if(data && data.Success && data.Payload.Result){
 			    invest=data;
 			    calc();
 			}else{
 				getInvestments();
 			}
-		  },
-		  error: function(){
-		  	getInvestments();
-		  },
-		  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+		},function(){
+			getInvestments();
 		});
-	},2300);
 }
 function getPayments(){
 	log("trying to fetch repayment report");
-	window.setTimeout(function(){
-		$.ajax({
-		  url: "https://api.bondora.com/api/v1/report/"+repaymentReport,
-		  success: function(data, status) {
-		  	if(data && data.Success && data.Payload.Result){
+	callBondora({
+		  url: "https://api.bondora.com/api/v1/report/"+repaymentReport
+		},function(data, status){
+			if(data && data.Success && data.Payload.Result){
 			    payments=data;
 			    calc();
 			}else{
 				getPayments();
 			}
-		  },
-		  error: function(){
-		  	getPayments();
-		  },
-		  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+		},function(){
+			getPayments();
 		});
-	},1800);
+}
+function callBondora(config,successcb,errorcb){
+	if(lastRequest > new Date().getTime() -1100){
+		//defer if request was made within one second
+		window.setTimeout(function(){callBondora(config,successcb,errorcb);},1300);
+		return;
+	}
+	config.beforeSend = function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); };
+	lastRequest = new Date().getTime();
+	$.ajax(config).done(successcb).error(errorcb);
 }
 </script>
 </body>
