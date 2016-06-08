@@ -1,0 +1,456 @@
+<html>
+	<head>
+		<title>bondora portfolio viewer</title>
+		<script src='https://code.jquery.com/jquery-2.2.4.min.js'></script>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+	</head>
+<body>
+	<nav class="navbar navbar-inverse">
+		 <div class="container-fluid">
+		 	<div class="collapse navbar-collapse">
+		 		<div class="navbar-header">
+			      <a class="navbar-brand" href="#">bondora portfolio viewer</a>
+			    </div>
+		      <form class="navbar-form navbar-left" id='hasToken'>
+		        <div class="form-group">
+		          <input type="text" class="form-control" placeholder="accessKey" id='accessKey'>
+		        </div>
+		        <button type="button" class="btn btn-default" onClick='getReports();return false;'>create reports</button>
+		        <button type="button" class="btn btn-default" onClick='clearStorage();return false;'>forget authorization</button>
+		      </form>
+		      <form id='noToken' class="navbar-form navbar-left" method='GET' action='https://www.bondora.com/oauth/authorize'>
+		      	<input type='hidden' name='response_type' value='code'></input>
+		      	<input type='hidden' name='client_id' value='93211f76d6174ee2bce4d329ac35b81f'></input>
+		      	<input type='hidden' name='scope' value='ReportCreate ReportRead'></input>
+		      	<input type='hidden' name='redirect_uri' value='https://bondora.apimeister.com/'></input>
+		        <button type="submit" class="btn btn-default">authorize bondora report access</button>
+		      </form>
+		      <p class="navbar-text navbar-right" id='log'></p>
+		    </div>
+	    </div>
+	</nav>
+	<div class="alert alert-warning alert-dismissible" role="alert">
+	  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	  All data is being processed within the browser. No data will be exchanged between Bondora and the hosting server.<br>
+	  The complete source code of this site is available on github.
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">general stats</div>
+	  <div class="panel-body" id='GeneralStats'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">loan count - current over default</div>
+	  <div class="panel-body" id='CurrentOverDefault'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">pending principal</div>
+	  <div class="panel-body" id='PendingPrinicpal'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">interest over time</div>
+	  <div class="panel-body" id='InterestOverTime'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">investment over time</div>
+	  <div class="panel-body" id='InvestmentOverTime'></div>
+	</div>
+<script>
+</script>
+<script>
+var accessToken='';
+var investmentReport ='';
+var repaymentReport='';
+var invest = {};
+var payments = {};
+var loans = {};
+var loansByYear={};
+var loansByMonth={};
+var paymentsByYear={};
+var paymentsByMonth={};
+var chartmillToken='jwkeri';
+
+//check uri for redirect token
+var uri=window.location.search;
+if((!localStorage['accessToken'] || localStorage['accessToken'].length==0) 
+	&& uri.indexOf('code=')>0 && uri.indexOf('&state')>0){
+	code = uri.substring(uri.indexOf('code=')+5,uri.indexOf('&state'));
+	$.ajax({
+	  url: "https://api.bondora.com/oauth/access_token",
+	  method:"POST",
+	  data: {grant_type:'authorization_code',client_id:'93211f76d6174ee2bce4d329ac35b81f',client_secret:'94BBXvLrItGEwAPjS9RNwaZKNVy1FjCrKK0AJZkwltajI90u',code: code}
+	}).done(function (data){
+		localStorage['accessToken'] = JSON.stringify(data);
+		accessToken = data.access_token;
+		$('#hasToken').show();
+		$('#accessKey').val(accessToken);
+		$('#noToken').hide();
+
+	}).error(function(err){
+		
+	});
+}
+
+if(localStorage['accessToken'] && localStorage['accessToken'].length>0){
+    var data = JSON.parse(localStorage['accessToken']);
+    if(data.valid_until > new Date().getTime()/1000)
+		accessToken = data.access_token;
+	else{
+		localStorage.clear();
+	}
+}
+
+if(accessToken && accessToken.length>0){
+	$('#hasToken').show();
+	$('#accessKey').val(accessToken);
+	$('#noToken').hide();
+}else{
+	$('#hasToken').hide();
+	$('#noToken').show();
+}
+function clearStorage(){
+	localStorage.clear();
+	window.location='https://bondora.apimeister.com/';
+}
+function log(str){
+	var sec = new Date().getSeconds();
+	$('#log').html(sec+": "+str);
+}
+function calc(){
+	log("calculating statistics");
+	if(payments.Payload && invest.Payload){
+		//payments by year
+		for(var idx2=0;idx2<payments.Payload.Result.length;idx2++){
+  		var payment = payments.Payload.Result[idx2];
+  		var year = payment.Date.substring(0,4);
+  		if(paymentsByYear[year]){
+			paymentsByYear[year].InterestRepayment += payment.InterestRepayment;
+			paymentsByYear[year].PrincipalRepayment += payment.PrincipalRepayment;
+	  	}else{
+	  		paymentsByYear[year] = {};
+			paymentsByYear[year].InterestRepayment = payment.InterestRepayment;
+			paymentsByYear[year].PrincipalRepayment = payment.PrincipalRepayment;
+	  	}
+  		}
+
+  		//payments by month
+		for(var idx2=0;idx2<payments.Payload.Result.length;idx2++){
+  		var payment = payments.Payload.Result[idx2];
+  		var month = payment.Date.substring(0,7);
+  		if(paymentsByMonth[month]){
+			paymentsByMonth[month].InterestRepayment += payment.InterestRepayment;
+			paymentsByMonth[month].PrincipalRepayment += payment.PrincipalRepayment;
+	  	}else{
+	  		paymentsByMonth[month] = {};
+			paymentsByMonth[month].InterestRepayment = payment.InterestRepayment;
+			paymentsByMonth[month].PrincipalRepayment = payment.PrincipalRepayment;
+	  	}
+  		}
+
+  		//iterate through all investments
+	    for(var idx=0;idx<invest.Payload.Result.length;idx++){
+	  	  var cur = invest.Payload.Result[idx];
+	  	  var loanid = cur.LoanId;
+	  	  var principal = cur.InvestmentPrincipal;
+	  	  var defaulted = cur.DefaultedOnDay;
+	  	  var loandate = cur.LoanDate.substring(0,10);
+	  	  if(loans[loanid]){
+			loans[loanid].principal += principal;
+	  	  }else{
+		  	loans[loanid] = {};
+		  	loans[loanid].principal = principal;
+		  	loans[loanid].loandate = loandate;
+		  	loans[loanid].loanmonth = loandate.substring(0,7);
+		  	if(defaulted>0)
+			  	loans[loanid].defaulted=true;
+		  	else
+		  		loans[loanid].defaulted=false;
+
+		  	//check payments
+		  	if(!loans[loanid].InterestRepayment){
+				loans[loanid].InterestRepayment = 0;
+				loans[loanid].PrincipalRepayment = 0;
+				loans[loanid].LastRepayment = false;
+			}
+		  }
+	  	
+	  	  //parse payments
+	  	  for(var idx2=0;idx2<payments.Payload.Result.length;idx2++){
+	  		var payment = payments.Payload.Result[idx2];
+	  		if(cur.LoanId == payment.LoanId){
+	  			if(loans[loanid].InterestRepayment){
+	  				loans[loanid].InterestRepayment += payment.InterestRepayment;
+	  				loans[loanid].PrincipalRepayment += payment.PrincipalRepayment;
+	  				loans[loanid].LastRepayment = payment.Date.substring(0,10);
+	  			}else{
+	  				loans[loanid].InterestRepayment = payment.InterestRepayment;
+	  				loans[loanid].PrincipalRepayment = payment.PrincipalRepayment;
+	  				loans[loanid].LastRepayment = payment.Date.substring(0,10);
+	  			}
+	  		}
+	  	  }
+	    }
+  
+        //aggregate by  month
+  		loansByMonth = {};
+  		for(var loanid in loans){
+  			var cur = loans[loanid];
+  			if(loansByMonth[cur.loanmonth]){
+		loansByMonth[cur.loanmonth].count +=1;
+    	loansByMonth[cur.loanmonth].principal += cur.principal;
+    	loansByMonth[cur.loanmonth].InterestRepayment += cur.InterestRepayment ? cur.InterestRepayment : 0;
+    	loansByMonth[cur.loanmonth].PrincipalRepayment += cur.PrincipalRepayment ?cur.PrincipalRepayment : 0;
+    	if(cur.defaulted){
+    		loansByMonth[cur.loanmonth].defaulted += 1;
+    		loansByMonth[cur.loanmonth].defaultedPrincipal += cur.principal;
+    	} 
+  			}else{
+  		loansByMonth[cur.loanmonth] = {};
+  		loansByMonth[cur.loanmonth].count=1;
+    	loansByMonth[cur.loanmonth].principal=cur.principal;
+    	loansByMonth[cur.loanmonth].InterestRepayment = cur.InterestRepayment ? cur.InterestRepayment :0;
+    	loansByMonth[cur.loanmonth].PrincipalRepayment = cur.PrincipalRepayment ? cur.PrincipalRepayment :0;
+    	if(cur.defaulted){
+    		loansByMonth[cur.loanmonth].defaultedPrincipal = cur.principal;
+    		loansByMonth[cur.loanmonth].defaulted = 1;
+    	} else {
+    		loansByMonth[cur.loanmonth].defaulted = 0;
+    		loansByMonth[cur.loanmonth].defaultedPrincipal = 0;
+    	}
+  			}
+  		}
+
+  		//aggregate by year
+  		loansByYear = {};
+  		for(var loanid in loans){
+  			var cur = loans[loanid];
+  			var year = cur.loanmonth.substring(0,4);
+  			if(loansByYear[year]){
+		loansByYear[year].count +=1;
+    	loansByYear[year].principal += cur.principal;
+    	loansByYear[year].InterestRepayment += cur.InterestRepayment ? cur.InterestRepayment : 0;
+    	loansByYear[year].PrincipalRepayment += cur.PrincipalRepayment ?cur.PrincipalRepayment : 0;
+    	if(cur.defaulted){
+    		loansByYear[year].defaulted += 1;
+    		loansByYear[year].defaultedPrincipal += cur.principal;
+    	} 
+  			}else{
+  		loansByYear[year] = {};
+  		loansByYear[year].count=1;
+    	loansByYear[year].principal=cur.principal;
+    	loansByYear[year].InterestRepayment = cur.InterestRepayment ? cur.InterestRepayment :0;
+    	loansByYear[year].PrincipalRepayment = cur.PrincipalRepayment ? cur.PrincipalRepayment :0;
+    	if(cur.defaulted){
+    		loansByYear[year].defaultedPrincipal = cur.principal;
+    		loansByYear[year].defaulted = 1;
+    	} else {
+    		loansByYear[year].defaulted = 0;
+    		loansByYear[year].defaultedPrincipal = 0;
+    	}
+  			}
+  		}
+
+		//render UI stuff
+		//general stats
+  		var str='<table class="table"><tr><th>year</th><th>principal invested</th><th>principal repayed</th><th>interest repayed</th>';
+  		for(var year in loansByYear){
+  			var cur1 = loansByYear[year];
+  			var cur2 = paymentsByYear[year];
+  			str+='<tr><td colspan="4"><b>'+year+'</b></td></tr>';
+  			str+='<tr><td></td><td>'+cur1.principal+'</td>';
+  			str+='<td>'+Math.round(cur2.PrincipalRepayment)+'</td><td>'+Math.round(cur2.InterestRepayment)+'</td></tr>';
+  		}
+  		str+='</table>';
+  		$('#GeneralStats').html(str);
+
+		//current over default
+  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=defaulted&section-2=current"
+     			+ "&hover=highlight";
+  		var idx=0;
+  		for(var month in loansByMonth){
+  			idx++;
+  			var cur = loansByMonth[month];
+  			url+="&bar-"+idx+"-section-1="+cur.defaulted
+  			   + "&bar-"+idx+"-section-2="+(cur.count-cur.defaulted);
+  		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#CurrentOverDefault').html(obj);
+
+		//pending principal
+  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=60days overdue&section-2=30days overdue&section-3=current&section-4=repaid"
+     	        +"&hover=highlight";
+  		var idx=0;
+		for(var month in loansByMonth){
+		  	idx++;
+		  	var cur = loansByMonth[month];
+		  	var current = {};
+		  	current.repaid=0;
+		  	current.overdue30=0;
+		  	current.overdue60=0;
+		  	current.principal = cur.principal;
+		  	for(var l in loans){
+		  		if(loans[l].loanmonth==month){
+		  			var contract = loans[l];
+		  			if(contract.PrincipalRepayment >0)
+		  				current.repaid += contract.PrincipalRepayment;
+		  			if(contract.LastRepayment){
+		  				var date1 = new Date();
+						var date2 = new Date(contract.LastRepayment);
+						var timeDiff = Math.abs(date2.getTime() - date1.getTime());
+						var diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24)); 
+						if(diffDays > 90){
+							current.overdue60+= (contract.principal - contract.PrincipalRepayment);
+							continue;
+						}
+						if(diffDays > 60)
+							current.overdue30+= (contract.principal - contract.PrincipalRepayment);
+		  			}
+		  		}
+		  	}
+		  	url+="&bar-"+idx+"-section-1="+current.overdue60
+		  			+"&bar-"+idx+"-section-2="+current.overdue30
+		  			+"&bar-"+idx+"-section-3="+Math.round(current.principal- (current.repaid + current.overdue30 + current.overdue60))
+		  			+"&bar-"+idx+"-section-4="+current.repaid;
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#PendingPrinicpal').html(obj);
+
+  		//interest over time
+  		var url = "https://api.chartmill.co/v1/barchart?token="+chartmillToken
+     		+"&hover=highlight";
+  		var idx=0;
+  		for(var month in paymentsByMonth){
+			idx++;
+		  	var cur = paymentsByMonth[month];
+		  	if(cur)
+			  	url+="&bar-"+idx+"="+Math.round(cur.InterestRepayment);
+			  else
+			  	url+="&bar-"+idx+"=0";
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#InterestOverTime').html(obj);
+
+  		//investment over time
+  		var url = "https://api.chartmill.co/v1/barchart?token="+chartmillToken
+     	  	+"&hover=highlight";
+  		var idx=0;
+		for(var month in loansByMonth){
+		  	idx++;
+		  	var cur = loansByMonth[month];
+		  	url+="&bar-"+idx+"="+cur.principal;
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#InvestmentOverTime').html(obj);
+		log("done");
+	}
+  
+}
+
+function getReports(){
+	log("fetching exsiting report list");
+	$.ajax({
+	  url: "https://api.bondora.com/api/v1/reports",
+	  method:"GET",
+	  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+	}).done(function (data){
+		var reports = data.Payload;
+	    for(var r in reports){
+	    	var report=reports[r];
+	    	//investments
+	    	if(report.ReportType == 2 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
+	    		investmentReport = report.ReportId;
+	    		getInvestments();
+	    	}
+	    	if(report.ReportType == 4 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
+	    		repaymentReport = report.ReportId;
+	    		getPayments();
+	    	}
+	    	if(investmentReport && repaymentReport) break;
+	    }
+	    if(!investmentReport)
+	    	createInvestmentReport();
+	    if(!repaymentReport)
+	    	createPaymentReport();
+	}).error(function(){
+		window.setTimeout(function(){getReports();},1200);
+	});
+}
+
+function createInvestmentReport(){
+	log("generating new bondora investment report");
+//create report
+$.ajax({
+	  url: "https://api.bondora.com/api/v1/report",
+	  method:"POST",
+	  data:{ReportType:2},
+	  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+	}).done(function(data){
+		investmentReport = data.Payload.ReportId;
+	    getInvestments();
+	}).error(function(){
+		window.setTimeout(function(){createInvestmentReport();},2400);
+	});
+}
+function createPaymentReport(){
+	log("generating new bondora repayment report");
+$.ajax({
+	  url: "https://api.bondora.com/api/v1/report",
+	  method:"POST",
+	  data:{ReportType:4},
+	  success: function(data, status) {
+	    repaymentReport = data.Payload.ReportId;
+	    getPayments();
+	  },
+	  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+	}).done(function(data){
+		repaymentReport = data.Payload.ReportId;
+	    getPayments();
+	}).error(function(data){
+		window.setTimeout(function(){createPaymentReport();},1500);
+	});
+}
+
+function getInvestments(){
+	log("trying to fetch investment report");
+	window.setTimeout(function(){
+		$.ajax({
+		  url: "https://api.bondora.com/api/v1/report/"+investmentReport,
+		  success: function(data, status) {
+		  	if(data && data.Success && data.Payload.Result){
+			    invest=data;
+			    calc();
+			}else{
+				getInvestments();
+			}
+		  },
+		  error: function(){
+		  	getInvestments();
+		  },
+		  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+		});
+	},2300);
+}
+function getPayments(){
+	log("trying to fetch repayment report");
+	window.setTimeout(function(){
+		$.ajax({
+		  url: "https://api.bondora.com/api/v1/report/"+repaymentReport,
+		  success: function(data, status) {
+		  	if(data && data.Success && data.Payload.Result){
+			    payments=data;
+			    calc();
+			}else{
+				getPayments();
+			}
+		  },
+		  error: function(){
+		  	getPayments();
+		  },
+		  beforeSend: function(xhr, settings) { xhr.setRequestHeader('Authorization','Bearer '+accessToken); } 
+		});
+	},1800);
+}
+</script>
+</body>
+</html>
