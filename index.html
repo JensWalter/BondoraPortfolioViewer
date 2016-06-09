@@ -317,7 +317,7 @@ function calc(){
 
   		//interest over time
   		var url = "https://api.chartmill.co/v1/barchart?token="+chartmillToken
-     		+"&hover=highlight";
+     		+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=3";
   		var idx=0;
   		for(var month in paymentsByMonth){
 			idx++;
@@ -332,7 +332,7 @@ function calc(){
 
   		//investment over time
   		var url = "https://api.chartmill.co/v1/barchart?token="+chartmillToken
-     	  	+"&hover=highlight";
+     	  	+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=3";
   		var idx=0;
 		for(var month in loansByMonth){
 		  	idx++;
