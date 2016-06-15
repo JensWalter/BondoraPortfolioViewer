@@ -400,18 +400,25 @@ function calc(){
 		var lastMonth = new Date();
 		lastMonth.setMonth(lastMonth.getMonth()-1);
 		lastMonth = lastMonth.toISOString().substring(0,7);
-  		str+='<div class="col-md-8 col-md-offset-2" style="margin-top:25px;"><table class="table"><tr><th></th><th>this month</th><th>last month</th></tr>';
+		var beforeMonth = new Date();
+		beforeMonth.setMonth(beforeMonth.getMonth()-2);
+		beforeMonth = beforeMonth.toISOString().substring(0,7);
+  		str+='<div class="col-md-8 col-md-offset-2" style="margin-top:25px;"><table class="table"><tr><th></th><th>'
+  			+currentMonth+'</th><th>'+lastMonth+'</th><th>'+beforeMonth+'</tr>';
 		str+='<tr><td><b>account value</b></td><td>'+Math.round(accountByMonth[currentMonth].value)+'</td>'
-			+'<td>'+Math.round(accountByMonth[lastMonth].value)+'</td></tr>';
-		str+='<tr><td><b>total interest received</b></td><td>'+Math.round(paymentsByMonth[currentMonth].InterestRepayment)+'</td><td>'+Math.round(paymentsByMonth[lastMonth].InterestRepayment)+'</td></tr>';
-		str+='<tr><td><b>annual percentage rate (based on this month)</b></td><td>'+Math.round((paymentsByMonth[currentMonth].InterestRepayment/accountByMonth[currentMonth].value)*100*12)+' %</td><td>'+Math.round((paymentsByMonth[lastMonth].InterestRepayment/accountByMonth[lastMonth].value)*100*12)+' %</td></tr>';
+			+'<td>'+Math.round(accountByMonth[lastMonth].value)+'</td>'
+			+'<td>'+Math.round(accountByMonth[beforeMonth].value)+'</td></tr>';
+		str+='<tr><td><b>total interest received</b></td><td>'+Math.round(paymentsByMonth[currentMonth].InterestRepayment)+'</td><td>'+Math.round(paymentsByMonth[lastMonth].InterestRepayment)+'</td>'
+		    +'<td>'+Math.round(paymentsByMonth[beforeMonth].InterestRepayment)+'</td></tr>';
+		str+='<tr><td><b>annual percentage rate (based on this month)</b></td><td>'+Math.round((paymentsByMonth[currentMonth].InterestRepayment/accountByMonth[currentMonth].value)*10000*12)/100+' %</td><td>'+Math.round((paymentsByMonth[lastMonth].InterestRepayment/accountByMonth[lastMonth].value)*10000*12)/100+' %</td>'
+		+'<td>'+Math.round((paymentsByMonth[beforeMonth].InterestRepayment/accountByMonth[beforeMonth].value)*10000*12)/100+' %</td></tr>';
   		str+='</table></div>';
   		$('#PortfolioDetails').html(str);
   		
 
 		//current over default
   		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=defaulted&section-2=current"
-     			+ "&hover=highlight";
+     			+ "&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=5";
   		var idx=0;
   		for(var month in loansByMonth){
   			idx++;
@@ -424,7 +431,7 @@ function calc(){
   		$('#CurrentOverDefault').html(obj);
 
 		//pending principal
-  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=60days overdue&section-2=30days overdue&section-3=current&section-4=repaid"
+  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=60days overdue&section-2=30days overdue&section-3=current&section-4=repaid&y-axis-tick-type=line&y-axis-tick-count=5"
      	        +"&hover=highlight";
   		var idx=0;
 		for(var month in loansByMonth){
