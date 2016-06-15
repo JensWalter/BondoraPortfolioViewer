@@ -41,26 +41,48 @@
 	  <div class="panel-body" id='GeneralStats'></div>
 	</div>
 	<div class="panel panel-default">
-	  <div class="panel-heading">loan count - current over default</div>
-	  <div class="panel-body">Number of current vs defauled loans invested per month. Defaulted is determined by the defaulted flag from the bondora investment report.</div>
+	  <div class="panel-heading">portfolio details</div>
+	  <div class="panel-body" id='PortfolioDetails'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">loan count over time</div>
+	  <div class="panel-body">This chart shows the number of current vs defauled loans invested per month. Defaulted is determined by the defaulted flag from the bondora investment report.</div>
 	  <div class="panel-body" id='CurrentOverDefault'></div>
 	</div>
 	<div class="panel panel-default">
 	  <div class="panel-heading">pending principal</div>
-	  <div class="panel-body">Presents the accumulated prinicpal invested by month. The overall amount is than divided into the following sections:
+	  <div class="panel-body">This chart shows the accumulated prinicpal invested per month. The overall amount is than divided into the following sections:
 	  	<ul><li>already repaid principal</li><li>pending principal (loan is still current)</li>
-	  	<li>30 days overdue</li><li>60 days overdue</li></ul></div>
+	  	<li>30 days overdue (no incoming payment withing 60 days)</li><li>60 days overdue (no incoming payment withing 90 days)</li></ul></div>
 	  <div class="panel-body" id='PendingPrinicpal'></div>
 	</div>
 	<div class="panel panel-default">
-	  <div class="panel-heading">interest over time</div>
-	  <div class="panel-body">Presents the received interest by month.</div>
+	  <div class="panel-heading">received interest</div>
 	  <div class="panel-body" id='InterestOverTime'></div>
 	</div>
 	<div class="panel panel-default">
-	  <div class="panel-heading">investment over time</div>
-	  <div class="panel-body">Presents the invested principal by month.</div>
+	  <div class="panel-heading">invested principal</div>
 	  <div class="panel-body" id='InvestmentOverTime'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">account value</div>
+	  <div class="panel-body">This chart shows the account value per month.The account value is determined by adding up all invested principal and substract the already repaid principal. Defaults are not incorporated.</div>
+	  <div class="panel-body" id='AccountValueOverTime'></div>
+	</div>
+	<div class="panel panel-default" style="display:none;">
+	  <div class="panel-heading">overdue (>30 days) percentage of the account value</div>
+	  <div class="panel-body">This chart shows the percentage of all overdue loans of the account value per month. Overdue is determined by a late (starting 30 days after the aggreed date) or no payment at all.</div>
+	  <div class="panel-body" id='Overdue30VsAccountValueOverTime'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">overdue (>90 days) percentage of the account value</div>
+	  <div class="panel-body">This chart shows the percentage of all overdue loans of the account value per month. Overdue is determined by a late (starting 90 days after the aggreed date) or no payment at all.</div>
+	  <div class="panel-body" id='Overdue90VsAccountValueOverTime'></div>
+	</div>
+	<div class="panel panel-default">
+	  <div class="panel-heading">overdue (>180 days) percentage of the account value</div>
+	  <div class="panel-body">This chart shows the percentage of all overdue loans of the account value per month. Overdue is determined by a late (starting 180 days after the aggreed date) or no payment at all.</div>
+	  <div class="panel-body" id='Overdue180VsAccountValueOverTime'></div>
 	</div>
 <script>
 </script>
@@ -77,6 +99,8 @@ var paymentsByYear={};
 var paymentsByMonth={};
 var chartmillToken='jwkeri';
 var lastRequest = new Date().getTime();
+var repaymentReportCreatedOn='';
+var investmentReportCreatedOn='';
 
 //check uri for redirect token
 var uri=window.location.search;
@@ -125,10 +149,11 @@ function log(str){
 function calc(){
 	log("calculating statistics");
 	if(payments.Payload && invest.Payload){
-		//payments by year
+		//payments by year and by month
 		for(var idx2=0;idx2<payments.Payload.Result.length;idx2++){
   		var payment = payments.Payload.Result[idx2];
   		var year = payment.Date.substring(0,4);
+  		var month = payment.Date.substring(0,7);
   		if(paymentsByYear[year]){
 			paymentsByYear[year].InterestRepayment += payment.InterestRepayment;
 			paymentsByYear[year].PrincipalRepayment += payment.PrincipalRepayment;
@@ -137,13 +162,7 @@ function calc(){
 			paymentsByYear[year].InterestRepayment = payment.InterestRepayment;
 			paymentsByYear[year].PrincipalRepayment = payment.PrincipalRepayment;
 	  	}
-  		}
-
-  		//payments by month
-		for(var idx2=0;idx2<payments.Payload.Result.length;idx2++){
-  		var payment = payments.Payload.Result[idx2];
-  		var month = payment.Date.substring(0,7);
-  		if(paymentsByMonth[month]){
+	  	if(paymentsByMonth[month]){
 			paymentsByMonth[month].InterestRepayment += payment.InterestRepayment;
 			paymentsByMonth[month].PrincipalRepayment += payment.PrincipalRepayment;
 	  	}else{
@@ -268,39 +287,59 @@ function calc(){
   			acc.value = 0;
   			acc.month = month;
   			acc.overdue = 0;
+  			acc.overdue30 = 0;
+			acc.overdue60 = 0;
+			acc.overdue90 = 0;
+			acc.overdue180 = 0;
   			for(var loanid in loans){
 	  			var cur = loans[loanid];
 	  			if(cur.loanmonth <= month){
 	  				//substract already paid
 	  				var repaid = 0;
 	  				var overdue = 0;
-	  				var lastPayment = '0000-00';
-	  				for(var payment in cur.Payments){
-	  					var curPayment = cur.Payments[payment];
-	  					if(curPayment.Date.substring(0,8) < month){
-	  						repaid+=curPayment.PrincipalRepayment;
-	  						lastPayment=curPayment.Date.substring(0,8);
-	  					}
-	  					if(curPayment.Date.substring(0,8) == month){
-							if(curPayment.Date.substring(8,10)*1 < cur.paymentDay){
-		  						repaid+=curPayment.PrincipalRepayment;
-		  						lastPayment=curPayment.Date.substring(0,8);
-		  					}else{
-		  						overdue = cur.principal - repaid;
-		  					}
-	  					}
+	  				var overdue30 = 0;
+	  				var overdue60 = 0;
+	  				var overdue90 = 0;
+	  				var overdue180 = 0;
+	  				var dueDate = new Date(month+'-'+cur.paymentDay);
+	  				if(dueDate.getTime()+(1000*3600*24) > new Date().getTime()){
+	  					dueDate.setMonth(dueDate.getMonth() - 1);
 	  				}
-	  				if(lastPayment<month) overdue = cur.principal - repaid;
-	  				if(overdue){
-	  					acc.value += (cur.principal - repaid);
-	  					acc.overdue += overdue;
-	  				}else{
-	  					acc.value = acc.value + cur.principal - repaid;
-		  			}
+	  				var lastPayment = new Date(cur.loanmonth+'-'+cur.paymentDay);
+	  				//expect repayment 2 month after invest
+	  				lastPayment.setMonth(lastPayment.getMonth() +2 );
+	  				var inTimePayments = cur.Payments.filter(function(entry){
+	  					var eTime = new Date(entry.Date).getTime();
+	  					if(dueDate.getTime() > eTime){
+	  						if(lastPayment.getTime() < eTime){
+	  							lastPayment = new Date(entry.Date);
+	  						}
+	  						return true;
+	  					}else{
+	  						return false;
+	  					}
+	  				});
+	  				for(var pIdx in inTimePayments){
+	  					repaid+=inTimePayments[pIdx].PrincipalRepayment;
+	  				}
+	  				if(lastPayment.getTime()<dueDate.getTime()) overdue = cur.principal - repaid;
+	  				if(lastPayment.getTime()+(1000 * 3600 * 24 *30)<dueDate.getTime()) overdue30 = cur.principal - repaid;
+	  				if(lastPayment.getTime()+(1000 * 3600 * 24 *60)<dueDate.getTime()) overdue60 = cur.principal - repaid;
+	  				if(lastPayment.getTime()+(1000 * 3600 * 24 *90)<dueDate.getTime()) overdue90 = cur.principal - repaid;
+					if(lastPayment.getTime()+(1000 * 3600 * 24 *180)<dueDate.getTime()) overdue180 = cur.principal - repaid;
+
+  					acc.value += (cur.principal - repaid);
+  					acc.overdue += overdue;
+	  				acc.overdue30 += overdue30;
+	  				acc.overdue60 += overdue60;
+	  				acc.overdue90 += overdue90;
+	  				acc.overdue180 += overdue180;
+	  				
 	  			}
 	  		}
 	  		accountByMonth[month]=acc;
   		}
+
   		for(var loanid in loans){
   			var cur = loans[loanid];
   			if(loansByMonth[cur.loanmonth]){
@@ -330,16 +369,45 @@ function calc(){
 
 		//render UI stuff
 		//general stats
-  		var str='<div class="col-md-8 col-md-offset-2"><table class="table"><tr><th>year</th><th>principal invested</th><th>principal repayed</th><th>interest repayed</th>';
+		var str="<div class='col-md-8 col-md-offset-2'><div>investment report was created at "+investmentReportCreatedOn+"</div>";
+		str+="<div>repayment report was created at "+repaymentReportCreatedOn+"</div></div>";
+  		str+='<div class="col-md-8 col-md-offset-2" style="margin-top:25px;"><table class="table"><tr><th>year</th><th>principal invested</th><th>principal repayed</th><th>interest repayed</th></tr>';
   		for(var year in loansByYear){
   			var cur1 = loansByYear[year];
   			var cur2 = paymentsByYear[year];
-  			str+='<tr><td colspan="4"><b>'+year+'</b></td></tr>';
-  			str+='<tr><td></td><td>'+cur1.principal+'</td>';
+  			str+='<tr><td><b>'+year+'</b></td><td>'+cur1.principal+'</td>';
   			str+='<td>'+Math.round(cur2.PrincipalRepayment)+'</td><td>'+Math.round(cur2.InterestRepayment)+'</td></tr>';
   		}
   		str+='</table></div>';
   		$('#GeneralStats').html(str);
+
+  		//portfolio details
+  		var count = 0;
+		for(var loanid in loans){
+			count++;
+		}
+		str="<div class='col-md-8 col-md-offset-2'><div>investment count: <b>"+count+"</b></div>";
+		str+="<div>repayment count: <b>"+payments.Payload.Result.length+"</b></div>";
+		var interest = 0;
+		for(var idx in paymentsByYear){
+			interest += paymentsByYear[idx].InterestRepayment;
+		}
+		str+="<div>interest received: <b>"+Math.round(interest)+"</b></div>"
+		str+="</div>";
+
+
+		var currentMonth = new Date().toISOString().substring(0,7);
+		var lastMonth = new Date();
+		lastMonth.setMonth(lastMonth.getMonth()-1);
+		lastMonth = lastMonth.toISOString().substring(0,7);
+  		str+='<div class="col-md-8 col-md-offset-2" style="margin-top:25px;"><table class="table"><tr><th></th><th>this month</th><th>last month</th></tr>';
+		str+='<tr><td><b>account value</b></td><td>'+Math.round(accountByMonth[currentMonth].value)+'</td>'
+			+'<td>'+Math.round(accountByMonth[lastMonth].value)+'</td></tr>';
+		str+='<tr><td><b>total interest received</b></td><td>'+Math.round(paymentsByMonth[currentMonth].InterestRepayment)+'</td><td>'+Math.round(paymentsByMonth[lastMonth].InterestRepayment)+'</td></tr>';
+		str+='<tr><td><b>annual percentage rate (based on this month)</b></td><td>'+Math.round((paymentsByMonth[currentMonth].InterestRepayment/accountByMonth[currentMonth].value)*100*12)+' %</td><td>'+Math.round((paymentsByMonth[lastMonth].InterestRepayment/accountByMonth[lastMonth].value)*100*12)+' %</td></tr>';
+  		str+='</table></div>';
+  		$('#PortfolioDetails').html(str);
+  		
 
 		//current over default
   		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=defaulted&section-2=current"
@@ -421,6 +489,66 @@ function calc(){
 		}
   		var obj = "<object data='"+url+"'></object>";
   		$('#InvestmentOverTime').html(obj);
+
+		//account value over time
+  		var url = "https://api.chartmill.co/v1/barchart?token="+chartmillToken
+     	  	+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=5";
+  		var idx=0;
+		for(var month in accountByMonth){
+		  	idx++;
+		  	var cur = accountByMonth[month];
+		  	url+="&bar-"+idx+"="+cur.value+"&bar-"+idx+"-text="+month;
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#AccountValueOverTime').html(obj);
+  		
+  		//percentage account value / overdue
+  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken
+     	  	+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=5"
+     	  	+"&section-1=overdue&section-2=total";
+  		var idx=0;
+		for(var month in accountByMonth){
+		  	idx++;
+		  	var cur = accountByMonth[month];
+		  	var percOverdue = Math.round(cur.overdue30/cur.value*100)
+		  	url+="&bar-"+idx+"-section-1="+percOverdue
+		  	url+="&bar-"+idx+"-section-2="+(100-percOverdue)
+		  	    +"&bar-"+idx+"-text="+month;
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#Overdue30VsAccountValueOverTime').html(obj);
+
+		//percentage account value / overdue
+  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken
+     	  	+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=5"
+     	  	+"&section-1=overdue&section-2=total";
+  		var idx=0;
+		for(var month in accountByMonth){
+		  	idx++;
+		  	var cur = accountByMonth[month];
+		  	var percOverdue = Math.round(cur.overdue90/cur.value*100)
+		  	url+="&bar-"+idx+"-section-1="+percOverdue
+		  	url+="&bar-"+idx+"-section-2="+(100-percOverdue)
+		  	    +"&bar-"+idx+"-text="+month;
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#Overdue90VsAccountValueOverTime').html(obj);
+
+  		//percentage account value / overdue
+  		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken
+     	  	+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=5"
+     	  	+"&section-1=overdue&section-2=total";
+  		var idx=0;
+		for(var month in accountByMonth){
+		  	idx++;
+		  	var cur = accountByMonth[month];
+		  	var percOverdue = Math.round(cur.overdue180/cur.value*100)
+		  	url+="&bar-"+idx+"-section-1="+percOverdue
+		  	url+="&bar-"+idx+"-section-2="+(100-percOverdue)
+		  	    +"&bar-"+idx+"-text="+month;
+		}
+  		var obj = "<object data='"+url+"'></object>";
+  		$('#Overdue180VsAccountValueOverTime').html(obj);
 		log("done");
 	}
   
@@ -438,10 +566,12 @@ function getReports(){
 		    	//investments
 		    	if(report.ReportType == 2 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
 		    		investmentReport = report.ReportId;
+		    		investmentReportCreatedOn = report.CreatedOn;
 		    		getInvestments();
 		    	}
 		    	if(report.ReportType == 4 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
 		    		repaymentReport = report.ReportId;
+		    		repaymentReportCreatedOn = report.CreatedOn;
 		    		getPayments();
 		    	}
 		    	if(investmentReport && repaymentReport) break;
