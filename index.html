@@ -176,7 +176,8 @@ function calc(){
 	    for(var idx=0;idx<invest.Payload.Result.length;idx++){
 	  	  var cur = invest.Payload.Result[idx];
 	  	  var loanid = cur.LoanId;
-	  	  var principal = cur.InvestmentPrincipal;
+	  	  if(loanid){
+	  	  var principal = cur.Amount;
 	  	  var defaulted = cur.DefaultedOnDay;
 	  	  var loandate = cur.LoanDate.substring(0,10);
 	  	  var payday = cur.MonthlyPaymentDay;
@@ -220,6 +221,7 @@ function calc(){
 	  		}
 	  	  }
 	    }
+	  }
   
         //aggregate by  month
   		loansByMonth = {};
