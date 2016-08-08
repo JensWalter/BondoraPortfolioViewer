@@ -571,7 +571,7 @@ function getReports(){
 		    for(var r in reports){
 		    	var report=reports[r];
 		    	//investments
-		    	if(report.ReportType == 2 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
+		    	if(report.ReportType == 8 && report.CreatedOn.substring(0,10) == new Date().toISOString().substring(0,10)){
 		    		investmentReport = report.ReportId;
 		    		investmentReportCreatedOn = report.CreatedOn;
 		    		getInvestments();
@@ -597,7 +597,7 @@ function createInvestmentReport(){
 	callBondora({
 		  url: "https://api.bondora.com/api/v1/report",
 		  method:"POST",
-		  data:{ReportType:2}
+		  data:{ReportType:8}
 		},function(data){
 			investmentReport = data.Payload.ReportId;
 		    getInvestments();
