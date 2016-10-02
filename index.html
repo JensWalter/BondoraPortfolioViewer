@@ -176,7 +176,7 @@ function calc(){
 	    for(var idx=0;idx<invest.Payload.Result.length;idx++){
 	  	  var cur = invest.Payload.Result[idx];
 	  	  var loanid = cur.LoanId;
-	  	  if(loanid){
+	  	  if(loanid && cur.LoanDate){
 	  	  var principal = cur.Amount;
 	  	  var defaulted = cur.DefaultedOnDay;
 	  	  var loandate = cur.LoanDate.substring(0,10);
