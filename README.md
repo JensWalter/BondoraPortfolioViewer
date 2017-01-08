@@ -1,6 +1,6 @@
 # BondoraPortfolioViewer
 
-This repo represents the code hosted under https://bondora.apimeister.com.
+This repo represents the code hosted under https://jenswalter.github.io/BondoraPortfolioViewer/.
 
 Just try it out.
 
