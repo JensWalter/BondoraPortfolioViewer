@@ -9,26 +9,24 @@
 <body>
 	<nav class="navbar navbar-inverse">
 		 <div class="container-fluid">
-		 	<div class="collapse navbar-collapse">
-		 		<div class="navbar-header">
-			      <a class="navbar-brand" href="#">bondora portfolio viewer</a>
-			    </div>
-		      <form class="navbar-form navbar-left" id='hasToken'>
-		        <div class="form-group">
-		          <input type="text" class="form-control" placeholder="accessKey" id='accessKey'>
-		        </div>
-		        <button type="button" class="btn btn-default" onClick='getReports();return false;'>create reports</button>
-		        <button type="button" class="btn btn-default" onClick='clearStorage();return false;'>forget authorization</button>
-		      </form>
-		      <form id='noToken' class="navbar-form navbar-left" method='GET' action='https://www.bondora.com/oauth/authorize'>
-		      	<input type='hidden' name='response_type' value='code'></input>
-		      	<input type='hidden' name='client_id' value='93211f76d6174ee2bce4d329ac35b81f'></input>
-		      	<input type='hidden' name='scope' value='ReportCreate ReportRead'></input>
-		      	<input type='hidden' name='redirect_uri' value='https://bondora.apimeister.com/'></input>
-		        <button type="submit" class="btn btn-default">authorize bondora report access</button>
-		      </form>
-		      <p class="navbar-text navbar-right" id='log'></p>
+	 		<div class="navbar-header">
+		      <a class="navbar-brand" href="#">bondora portfolio viewer</a>
 		    </div>
+	      <form class="navbar-form navbar-left" id='hasToken'>
+	        <div class="form-group">
+	          <input type="text" class="form-control" placeholder="accessKey" id='accessKey'>
+	        </div>
+	        <button type="button" class="btn btn-default" onClick='getReports();return false;'>create reports</button>
+	        <button type="button" class="btn btn-default" onClick='clearStorage();return false;'>forget authorization</button>
+	      </form>
+	      <form id='noToken' class="navbar-form navbar-left" method='GET' action='https://www.bondora.com/oauth/authorize'>
+	      	<input type='hidden' name='response_type' value='code'></input>
+	      	<input type='hidden' name='client_id' value='93211f76d6174ee2bce4d329ac35b81f'></input>
+	      	<input type='hidden' name='scope' value='ReportCreate ReportRead'></input>
+	      	<input type='hidden' name='redirect_uri' value='https://bondora.apimeister.com/'></input>
+	        <button type="submit" class="btn btn-default">authorize bondora report access</button>
+	      </form>
+	      <p class="navbar-text navbar-right" id='log'></p>
 	    </div>
 	</nav>
 	<div class="alert alert-warning alert-dismissible" role="alert">
@@ -104,7 +102,7 @@ var investmentReportCreatedOn='';
 
 //check uri for redirect token
 var uri=window.location.search;
-if((!localStorage['accessToken'] || localStorage['accessToken'].length==0) 
+if((!localStorage['accessToken'] || localStorage['accessToken'].length==0)
 	&& uri.indexOf('code=')>0 && uri.indexOf('&state')>0){
 	code = uri.substring(uri.indexOf('code=')+5,uri.indexOf('&state'));
 	callBondora({
@@ -202,7 +200,7 @@ function calc(){
 				loans[loanid].Payments = [];
 			}
 		  }
-	  	
+
 	  	  //parse payments
 	  	  for(var idx2=0;idx2<payments.Payload.Result.length;idx2++){
 	  		var payment = payments.Payload.Result[idx2];
@@ -222,7 +220,7 @@ function calc(){
 	  	  }
 	    }
 	  }
-  
+
         //aggregate by  month
   		loansByMonth = {};
   		for(var loanid in loans){
@@ -235,7 +233,7 @@ function calc(){
     	if(cur.defaulted){
     		loansByMonth[cur.loanmonth].defaulted += 1;
     		loansByMonth[cur.loanmonth].defaultedPrincipal += cur.principal;
-    	} 
+    	}
   			}else{
   		loansByMonth[cur.loanmonth] = {};
   		loansByMonth[cur.loanmonth].count=1;
@@ -265,7 +263,7 @@ function calc(){
     	if(cur.defaulted){
     		loansByYear[year].defaulted += 1;
     		loansByYear[year].defaultedPrincipal += cur.principal;
-    	} 
+    	}
   			}else{
   		loansByYear[year] = {};
   		loansByYear[year].count=1;
@@ -336,7 +334,7 @@ function calc(){
 	  				acc.overdue60 += overdue60;
 	  				acc.overdue90 += overdue90;
 	  				acc.overdue180 += overdue180;
-	  				
+
 	  			}
 	  		}
 	  		accountByMonth[month]=acc;
@@ -352,7 +350,7 @@ function calc(){
     	if(cur.defaulted){
     		loansByMonth[cur.loanmonth].defaulted += 1;
     		loansByMonth[cur.loanmonth].defaultedPrincipal += cur.principal;
-    	} 
+    	}
   			}else{
   		loansByMonth[cur.loanmonth] = {};
   		loansByMonth[cur.loanmonth].count=1;
@@ -416,7 +414,7 @@ function calc(){
 		+'<td>'+Math.round((paymentsByMonth[beforeMonth].InterestRepayment/accountByMonth[beforeMonth].value)*10000*12)/100+' %</td></tr>';
   		str+='</table></div>';
   		$('#PortfolioDetails').html(str);
-  		
+
 
 		//current over default
   		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken+"&section-1=defaulted&section-2=current"
@@ -453,7 +451,7 @@ function calc(){
 		  				var date1 = new Date();
 						var date2 = new Date(contract.LastRepayment);
 						var timeDiff = Math.abs(date2.getTime() - date1.getTime());
-						var diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24)); 
+						var diffDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
 						if(diffDays > 90){
 							current.overdue60+= (contract.principal - contract.PrincipalRepayment);
 							continue;
@@ -510,7 +508,7 @@ function calc(){
 		}
   		var obj = "<object data='"+url+"'></object>";
   		$('#AccountValueOverTime').html(obj);
-  		
+
   		//percentage account value / overdue
   		var url = "https://api.chartmill.co/v1/stackedbarchart?token="+chartmillToken
      	  	+"&hover=highlight&y-axis-tick-type=line&y-axis-tick-count=5"
@@ -560,7 +558,7 @@ function calc(){
   		$('#Overdue180VsAccountValueOverTime').html(obj);
 		log("done");
 	}
-  
+
 }
 
 function getReports(){
@@ -599,7 +597,9 @@ function createInvestmentReport(){
 	callBondora({
 		  url: "https://api.bondora.com/api/v1/report",
 		  method:"POST",
-		  data:{ReportType:8}
+		  data:{ReportType:8,
+		  	"PeriodStart": "2010-01-01T00:00:00Z",
+  			"PeriodEnd": new Date().toISOString()}
 		},function(data){
 			investmentReport = data.Payload.ReportId;
 		    getInvestments();
@@ -612,7 +612,9 @@ function createPaymentReport(){
 	callBondora({
 		  url: "https://api.bondora.com/api/v1/report",
 		  method:"POST",
-		  data:{ReportType:4}
+		  data:{ReportType:4,
+			  "PeriodStart": "2010-01-01T00:00:00Z",
+  			"PeriodEnd": new Date().toISOString()}
 		},function(data){
 			repaymentReport = data.Payload.ReportId;
 		    getPayments();
